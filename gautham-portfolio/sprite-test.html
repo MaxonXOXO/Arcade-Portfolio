@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sprite Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a0a2e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      font-family: monospace;
+      color: #00ff88;
+    }
+    #info {
+      margin-bottom: 20px;
+      font-size: 16px;
+      letter-spacing: 2px;
+    }
+    #frame-info {
+      margin-top: 16px;
+      font-size: 13px;
+      color: #888;
+    }
+    canvas {
+      image-rendering: pixelated;
+      border: 2px solid #333;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="info">SPRITE TESTER — [ SPACE ] to jump</div>
+  <canvas id="canvas" width="300" height="300"></canvas>
+  <div id="frame-info">anim: idle | frame: 1</div>
+
+  <script>
+    const canvas = document.getElementById('canvas')
+    const ctx = canvas.getContext('2d')
+    const frameInfo = document.getElementById('frame-info')
+
+    // ── CONFIG ───────────────────────────────────────────────────────────────
+    const ANIMATIONS = {
+      idle: {
+        folder: 'idle',
+        frames: 8,       // change this to match how many frames you have
+        frameRate: 8,    // frames per second
+        repeat: true     // loop
+      },
+      jump: {
+        folder: 'jump',
+        frames: 4,       // change to match your jump frame count
+        frameRate: 10,
+        repeat: false    // play once then return to idle
+      }
+    }
+
+    // Scale — increase if sprite looks tiny, decrease if too big
+    const SCALE = 2.5
+
+    // ── STATE ────────────────────────────────────────────────────────────────
+    let currentAnim = 'idle'
+    let currentFrame = 0
+    let images = {}       // loaded Image objects keyed by "animN"
+    let lastTime = 0
+    let frameDuration = 1000 / ANIMATIONS.idle.frameRate
+
+    // ── LOAD ALL FRAMES ──────────────────────────────────────────────────────
+    function loadAll() {
+      let totalToLoad = 0
+      let loaded = 0
+
+      Object.entries(ANIMATIONS).forEach(([name, config]) => {
+        for (let i = 1; i <= config.frames; i++) {
+          totalToLoad++
+          const img = new Image()
+          const key = `${name}${i}`
+          // Path assumes this file is at project root
+          // and sprites are in public/assets/sprites/
+          img.src = `public/assets/sprites/${config.folder}/${config.folder}${i}.png`
+          img.onload = () => {
+            loaded++
+            if (loaded === totalToLoad) {
+              console.log('All frames loaded. Starting animation.')
+              requestAnimationFrame(loop)
+            }
+          }
+          img.onerror = () => {
+            console.warn(`Failed to load: ${img.src}`)
+            loaded++
+            if (loaded === totalToLoad) requestAnimationFrame(loop)
+          }
+          images[key] = img
+        }
+      })
+    }
+
+    // ── ANIMATION LOOP ───────────────────────────────────────────────────────
+    function loop(timestamp) {
+      const anim = ANIMATIONS[currentAnim]
+      frameDuration = 1000 / anim.frameRate
+
+      if (timestamp - lastTime >= frameDuration) {
+        currentFrame++
+
+        if (currentFrame >= anim.frames) {
+          if (anim.repeat) {
+            currentFrame = 0          // loop back
+          } else {
+            currentFrame = anim.frames - 1  // hold last frame briefly
+            setTimeout(() => {
+              switchAnim('idle')      // return to idle after jump finishes
+            }, 100)
+          }
+        }
+
+        draw()
+        lastTime = timestamp
+      }
+
+      requestAnimationFrame(loop)
+    }
+
+    // ── DRAW ─────────────────────────────────────────────────────────────────
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+      const key = `${currentAnim}${currentFrame + 1}`
+      const img = images[key]
+
+      if (img && img.complete && img.naturalWidth > 0) {
+        const w = img.naturalWidth * SCALE
+        const h = img.naturalHeight * SCALE
+        const x = (canvas.width - w) / 2
+        const y = (canvas.height - h) / 2
+        ctx.drawImage(img, x, y, w, h)
+      }
+
+      frameInfo.textContent =
+        `anim: ${currentAnim} | frame: ${currentFrame + 1} / ${ANIMATIONS[currentAnim].frames}`
+    }
+
+    // ── INPUT ────────────────────────────────────────────────────────────────
+    function switchAnim(name) {
+      if (currentAnim === name) return
+      currentAnim = name
+      currentFrame = 0
+      frameDuration = 1000 / ANIMATIONS[name].frameRate
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault()
+        if (currentAnim !== 'jump') {
+          switchAnim('jump')
+        }
+      }
+    })
+
+    // ── START ────────────────────────────────────────────────────────────────
+    loadAll()
+  </script>
+
+</body>
+</html>
