@@ -1,23 +1,12 @@
 import Phaser from 'phaser'
 import PreloadScene from './scenes/PreloadScene'
 import IntroScene from './scenes/IntroScene'
-
-// placeholder — we'll add this next
-class Zone1Scene extends Phaser.Scene {
-    constructor() { super('Zone1Scene') }
-    create() {
-        this.add.text(100, 100, 'ZONE 1 — COMING SOON', {
-            fontFamily: 'monospace',
-            fontSize: '32px',
-            color: '#00ff88'
-        })
-    }
-}
+import Zone1Scene from './scenes/Zone1Scene'
 
 export const gameConfig = {
     type: Phaser.AUTO,
-    width: window.innerWidth,
-    height: window.innerHeight,
+    width: 800,
+    height: 600,
     pixelArt: true,
     antialias: false,
     roundPixels: true,

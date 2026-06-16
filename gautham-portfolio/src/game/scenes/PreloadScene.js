@@ -38,5 +38,9 @@ export default class PreloadScene extends Phaser.Scene {
         this.load.image('layer4_components', 'assets/backgrounds/zone1/layer4_components.png')
         this.load.image('layer5_ground', 'assets/backgrounds/zone1/layer5_ground.png')
         this.load.image('layer6_platforms', 'assets/backgrounds/zone1/layer6_platforms.png')
+
+        // Load new tilemap and tileset
+        this.load.tilemapTiledJSON('zone1_map', 'assets/maps/zone1.tmj')
+        this.load.image('basic_tiles', 'assets/tiles/ground.png')
     }
 }

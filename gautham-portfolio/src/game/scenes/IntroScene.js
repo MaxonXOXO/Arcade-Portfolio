@@ -11,16 +11,23 @@ export default class IntroScene extends Phaser.Scene {
 
         createAnimations(this)
 
-        // ── PARALLAX BACKGROUND ───────────────────────────────────────────────
-        // All layers anchored bottom-center, growing upward from same baseline
+        // Calculate responsive scaling and world width based on 3840x1080 background aspect ratio
+        const scale = height / 1080
+        const worldWidth = 3840 * scale
 
-        // Layer 1 - Sky fills entire screen
-        // Sky fills full screen
+        // Set physics world bounds so the player doesn't walk out of the level
+        this.physics.world.setBounds(0, 0, worldWidth, height)
+
+        // Initialize transition state
+        this.isTransitioning = false
+
+        // ── PARALLAX BACKGROUND ───────────────────────────────────────────────
+        // Layer 1 - Sky fills entire screen and stays fixed
         this.add.image(width / 2, height / 2, 'layer1_sky')
             .setScrollFactor(0)
             .setDisplaySize(width, height)
 
-        // All other layers anchor to bottom
+        // All other layers anchor to bottom and scale to worldWidth
         const bgLayers = [
             { key: 'layer2_city', scrollFactor: 0.05 },
             { key: 'layer3_pcb', scrollFactor: 0.1 },
@@ -29,17 +36,56 @@ export default class IntroScene extends Phaser.Scene {
         ]
 
         bgLayers.forEach(({ key, scrollFactor }) => {
-            this.add.image(width / 2, height, key)
+            this.add.image(worldWidth / 2, height, key)
                 .setOrigin(0.5, 1)
                 .setScrollFactor(scrollFactor)
-                .setDisplaySize(width, height)
+                .setDisplaySize(worldWidth, height)
         })
 
-        // ── SPRITE ────────────────────────────────────────────────────────────
-        this.player = this.add.sprite(width / 2, height * 0.62, 'idle1')
+        // ── SPRITE WITH PHYSICS ───────────────────────────────────────────────
+        this.player = this.physics.add.sprite(width / 2, height * 0.62 - 50, 'idle1')
         this.player.setOrigin(0.5, 1)
         this.player.setScale(0.7)
-        this.player.play('wave')
+        this.player.setCollideWorldBounds(true)
+        this.player.play('idle')
+
+        // Adjust body size to fit bounding box (tightly matching character shape)
+        this.player.body.setSize(66, 128)
+        this.player.body.setOffset(66, 35)
+
+        // Jump and movement state tracking
+        this.wasInAir = false
+        this.isLanding = false
+        this.highestY = 0
+        this.isHighFall = false
+        this.jumpStartY = 0
+
+        // Listen for jump animation completion to clear landing state
+        this.player.on('animationcomplete', (anim) => {
+            if (anim.key === 'jump') {
+                this.isLanding = false
+            }
+        })
+
+        // ── GROUND COLLIDER ───────────────────────────────────────────────────
+        const groundY = height * 0.62
+        const groundLine = this.add.rectangle(worldWidth / 2, groundY + 10, worldWidth, 20, 0x000000, 0)
+        this.physics.add.existing(groundLine, true)
+        this.physics.add.collider(this.player, groundLine)
+
+        // ── CONTROLS ──────────────────────────────────────────────────────────
+        this.cursors = this.input.keyboard.createCursorKeys()
+        this.wasd = this.input.keyboard.addKeys({
+            up: Phaser.Input.Keyboard.KeyCodes.W,
+            left: Phaser.Input.Keyboard.KeyCodes.A,
+            down: Phaser.Input.Keyboard.KeyCodes.S,
+            right: Phaser.Input.Keyboard.KeyCodes.D
+        })
+        this.idleTime = 0
+
+        // ── CAMERA FOLLOW (HORIZONTAL ONLY) ───────────────────────────────────
+        this.cameras.main.setBounds(0, 0, worldWidth, height)
+        this.cameras.main.startFollow(this.player, true, 0.1, 0)
 
         // ── "HI I'M GAUTHAM" TEXT ─────────────────────────────────────────────
         const title = "HI I'M GAUTHAM"
@@ -50,7 +96,7 @@ export default class IntroScene extends Phaser.Scene {
             stroke: '#000000',
             strokeThickness: 6,
             align: 'center'
-        }).setOrigin(0.5)
+        }).setOrigin(0.5).setScrollFactor(0)
 
         // Typewriter effect
         let charIndex = 0
@@ -69,24 +115,25 @@ export default class IntroScene extends Phaser.Scene {
             }
         })
 
-        // ── SCROLL HINT ───────────────────────────────────────────────────────
-        this.add.text(width / 2, height * 0.3, 'scroll down for portfolio', {
+        // ── SCROLL / INSTRUCTION HINT ─────────────────────────────────────────
+        this.add.text(width / 2, height * 0.3, 'use A/D or ARROWS to walk, SPACE or W to jump', {
             fontFamily: 'monospace',
             fontSize: '14px',
             color: '#aaaaaa',
             align: 'center'
-        }).setOrigin(0.5).setAlpha(0.6)
+        }).setOrigin(0.5).setAlpha(0.6).setScrollFactor(0)
 
         // ── PLAY BUTTON ───────────────────────────────────────────────────────
         const btnBg = this.add.rectangle(width / 2, height * 0.82, 240, 64, 0xf5a623)
             .setInteractive({ useHandCursor: true })
             .setStrokeStyle(4, 0xffffff)
+            .setScrollFactor(0)
 
         const btnText = this.add.text(width / 2, height * 0.82, '▶  PLAY', {
             fontFamily: 'monospace',
             fontSize: '28px',
             color: '#1a0a2e',
-        }).setOrigin(0.5)
+        }).setOrigin(0.5).setScrollFactor(0)
 
         // Pulse animation on button
         this.tweens.add({
@@ -124,8 +171,9 @@ export default class IntroScene extends Phaser.Scene {
 
         // Click → fade to Zone 1
         btnBg.on('pointerdown', () => {
-            // Sprite reacts to click
-            this.player.play('jump')
+            this.isTransitioning = true
+            this.player.setVelocity(0, -350)
+            this.player.play('jump', true)
             this.time.delayedCall(400, () => {
                 this.cameras.main.fadeOut(800, 0, 0, 0)
                 this.cameras.main.once('camerafadeoutcomplete', () => {
@@ -136,9 +184,14 @@ export default class IntroScene extends Phaser.Scene {
 
         // Enter key also starts game
         this.input.keyboard.once('keydown-ENTER', () => {
-            this.cameras.main.fadeOut(800, 0, 0, 0)
-            this.cameras.main.once('camerafadeoutcomplete', () => {
-                this.scene.start('Zone1Scene')
+            this.isTransitioning = true
+            this.player.setVelocity(0, -350)
+            this.player.play('jump', true)
+            this.time.delayedCall(400, () => {
+                this.cameras.main.fadeOut(800, 0, 0, 0)
+                this.cameras.main.once('camerafadeoutcomplete', () => {
+                    this.scene.start('Zone1Scene')
+                })
             })
         })
 
@@ -148,7 +201,8 @@ export default class IntroScene extends Phaser.Scene {
             delay: 400,
             loop: true,
             callback: () => {
-                const x = Phaser.Math.Between(50, width - 50)
+                const camX = this.cameras.main.scrollX
+                const x = Phaser.Math.Between(camX + 50, camX + width - 50)
                 const particle = this.add.rectangle(
                     x, height * 0.6,
                     3, 3,
@@ -168,5 +222,106 @@ export default class IntroScene extends Phaser.Scene {
 
         // ── CAMERA FADE IN ────────────────────────────────────────────────────
         this.cameras.main.fadeIn(1000, 0, 0, 0)
+    }
+
+    update(time, delta) {
+        if (this.isTransitioning) {
+            this.player.setVelocityX(0)
+            return
+        }
+
+        const keys = {
+            left: this.cursors.left.isDown || this.wasd.left.isDown,
+            right: this.cursors.right.isDown || this.wasd.right.isDown,
+            jump: this.cursors.up.isDown || this.wasd.up.isDown || this.cursors.space.isDown
+        }
+
+        const onGround = this.player.body.blocked.down || this.player.body.touching.down
+
+        // Apply horizontal movement
+        if (keys.left) {
+            this.player.setVelocityX(-250)
+            this.player.setFlipX(true)
+            this.idleTime = 0
+        } else if (keys.right) {
+            this.player.setVelocityX(250)
+            this.player.setFlipX(false)
+            this.idleTime = 0
+        } else {
+            this.player.setVelocityX(0)
+        }
+
+        // Jump and land animation state machine
+        if (!onGround) {
+            this.wasInAir = true
+            this.isLanding = false // Interrupted landing
+
+            // Track peak height and determine high fall
+            this.highestY = Math.min(this.highestY, this.player.y)
+            if (this.player.y > this.jumpStartY + 40 || this.player.y - this.highestY > 135) {
+                this.isHighFall = true
+            }
+
+            if (this.isHighFall) {
+                if (this.player.anims.isPaused) {
+                    this.player.anims.resume()
+                }
+                this.player.play('fall', true)
+            } else {
+                if (this.player.anims.currentAnim?.key === 'jump') {
+                    if (this.player.anims.currentFrame && this.player.anims.currentFrame.index >= 5) {
+                        this.player.anims.setCurrentFrame(this.player.anims.currentAnim.frames[4]) // Hold on frame 5
+                        this.player.anims.pause()
+                    } else if (this.player.anims.isPaused) {
+                        this.player.anims.resume()
+                    }
+                } else {
+                    this.player.play('jump')
+                }
+            }
+        } else {
+            // Player is on the ground
+            if (this.wasInAir) {
+                const prevAnim = this.player.anims.currentAnim?.key
+                this.wasInAir = false
+                this.isLanding = true
+                
+                if (prevAnim === 'jump' || prevAnim === 'fall') {
+                    this.player.play('jump')
+                    if (this.player.anims.currentAnim?.frames && this.player.anims.currentAnim.frames.length >= 6) {
+                        this.player.anims.setCurrentFrame(this.player.anims.currentAnim.frames[5]) // Play frame 6
+                        this.player.anims.resume()
+                    } else {
+                        this.isLanding = false
+                    }
+                } else {
+                    this.isLanding = false
+                }
+            }
+
+            // Reset fall tracking
+            this.highestY = this.player.y
+            this.jumpStartY = this.player.y
+            this.isHighFall = false
+
+            if (!this.isLanding) {
+                // Normal walking / idle animations when not landing
+                if (keys.left || keys.right) {
+                    this.player.play('run', true)
+                } else {
+                    this.idleTime += delta
+                    const nextAnim = this.idleTime > 3000 ? 'wave' : 'idle'
+                    this.player.play(nextAnim, true)
+                }
+            }
+        }
+
+        // Handle Jumps
+        if (keys.jump && onGround) {
+            this.player.setVelocityY(-450)
+            this.player.play('jump')
+            this.idleTime = 0
+            this.isLanding = false
+        }
     }
 }
