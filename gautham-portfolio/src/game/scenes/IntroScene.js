@@ -56,9 +56,6 @@ export default class IntroScene extends Phaser.Scene {
         // Jump and movement state tracking
         this.wasInAir = false
         this.isLanding = false
-        this.highestY = 0
-        this.isHighFall = false
-        this.jumpStartY = 0
 
         // Listen for jump animation completion to clear landing state
         this.player.on('animationcomplete', (anim) => {
@@ -256,53 +253,34 @@ export default class IntroScene extends Phaser.Scene {
             this.wasInAir = true
             this.isLanding = false // Interrupted landing
 
-            // Track peak height and determine high fall
-            this.highestY = Math.min(this.highestY, this.player.y)
-            if (this.player.y > this.jumpStartY + 40 || this.player.y - this.highestY > 135) {
-                this.isHighFall = true
-            }
-
-            if (this.isHighFall) {
+            // If rising, play jump. If at peak or falling, play fall animation
+            if (this.player.body.velocity.y < 0) {
+                this.player.play('jump', true)
+            } else {
                 if (this.player.anims.isPaused) {
                     this.player.anims.resume()
                 }
                 this.player.play('fall', true)
-            } else {
-                if (this.player.anims.currentAnim?.key === 'jump') {
-                    if (this.player.anims.currentFrame && this.player.anims.currentFrame.index >= 5) {
-                        this.player.anims.setCurrentFrame(this.player.anims.currentAnim.frames[4]) // Hold on frame 5
-                        this.player.anims.pause()
-                    } else if (this.player.anims.isPaused) {
-                        this.player.anims.resume()
-                    }
-                } else {
-                    this.player.play('jump')
-                }
             }
         } else {
             // Player is on the ground
             if (this.wasInAir) {
-                const prevAnim = this.player.anims.currentAnim?.key
                 this.wasInAir = false
                 this.isLanding = true
                 
-                if (prevAnim === 'jump' || prevAnim === 'fall') {
-                    this.player.play('jump')
-                    if (this.player.anims.currentAnim?.frames && this.player.anims.currentAnim.frames.length >= 6) {
-                        this.player.anims.setCurrentFrame(this.player.anims.currentAnim.frames[5]) // Play frame 6
-                        this.player.anims.resume()
-                    } else {
+                // Play fall animation and freeze on the 8th frame (index 7) for landing impact
+                this.player.play('fall')
+                if (this.player.anims.currentAnim && this.player.anims.currentAnim.frames.length >= 8) {
+                    this.player.anims.setCurrentFrame(this.player.anims.currentAnim.frames[7]) // Frame 8
+                    this.player.anims.pause()
+                    
+                    this.time.delayedCall(250, () => {
                         this.isLanding = false
-                    }
+                    })
                 } else {
                     this.isLanding = false
                 }
             }
-
-            // Reset fall tracking
-            this.highestY = this.player.y
-            this.jumpStartY = this.player.y
-            this.isHighFall = false
 
             if (!this.isLanding) {
                 // Normal walking / idle animations when not landing

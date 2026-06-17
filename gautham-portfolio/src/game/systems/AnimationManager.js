@@ -31,6 +31,7 @@ export function createAnimations(scene) {
                         frameObj.duration = 250 // Hold landing frame for 250ms
                     }
                     return frameObj
+
                 }),
                 frameRate: config.frameRate,
                 repeat: config.repeat
